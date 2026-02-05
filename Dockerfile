@@ -1,7 +1,13 @@
 FROM python:3.11-slim
 WORKDIR /app
-# Required for Paddle/OpenCV system dependencies
-RUN apt-get update && apt-get install -y libgl1-mesa-glx libglib2.0-0
+
+# Updated system dependencies for Debian Trixie/13
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglx-mesa0 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
