@@ -1,12 +1,14 @@
-version: '3.8'
 services:
   ocr-app:
     build: .
     restart: always
+    # Add this block to expose the port to the public IP
+    ports:
+      - "8000:8000" 
     deploy:
       resources:
         limits:
-          memory: 6G  # Leave 2G for Dokploy/OS
+          memory: 6G
     networks:
       - dokploy-network
 
