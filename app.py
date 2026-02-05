@@ -22,7 +22,7 @@ async def scan(file: UploadFile = File(...), prompt: str = Form(...)):
         response = await client.post(
             f"{OLLAMA_URL}/api/chat",
             json={
-                "model": "qwen2.5-vl:3b-q4_K_M",
+                "model": "qwen2.5vl:3b-q4_K_M",
                 "messages": [{
                     "role": "user",
                     "content": prompt,
