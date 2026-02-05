@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  ocr-app:
+    build: .
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 6G  # Leave 2G for Dokploy/OS
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true

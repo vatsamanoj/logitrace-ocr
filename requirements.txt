@@ -1,0 +1,7 @@
+paddlepaddle==3.0.0b2
+transformers>=5.0.0
+torch
+pillow
+fastapi
+uvicorn
+python-multipart
