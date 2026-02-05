@@ -1,9 +1,4 @@
 fastapi
 uvicorn
 python-multipart
-pillow
-torch
-paddlepaddle==3.0.0b2
-transformers>=4.46.0
-torchvision
-einops
+httpx

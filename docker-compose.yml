@@ -1,17 +1,35 @@
+version: '3.8'
+
 services:
+  # The AI Engine
+  ollama-vlm:
+    image: ollama/ollama:latest
+    container_name: ollama-vlm
+    volumes:
+      - ollama_storage:/root/.ollama
+    networks:
+      - logitrace-net
+
+  # Your Logistics API
   ocr-app:
     build: .
-    restart: always
-    # Add this block to expose the port to the public IP
+    container_name: ocr-app
+    depends_on:
+      - ollama-vlm
     ports:
-      - "8000:8000" 
+      - "8000:8000"
+    environment:
+      - OLLAMA_HOST=http://ollama-vlm:11434
+    networks:
+      - logitrace-net
     deploy:
       resources:
         limits:
-          memory: 6G
-    networks:
-      - dokploy-network
+          memory: 4G # Qwen 3B q4 needs ~2GB; 4GB is safe
 
 networks:
-  dokploy-network:
-    external: true
+  logitrace-net:
+    external: false
+
+volumes:
+  ollama_storage:
