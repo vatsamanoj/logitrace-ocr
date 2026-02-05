@@ -19,7 +19,7 @@ try:
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_ID, 
         trust_remote_code=True,
-        torch_dtype=torch.float32  # Standard for CPU stability
+        dtype=torch.float32  # Standard for CPU stability
     ).to("cpu").eval()
 except Exception as e:
     print(f"Error loading model: {e}")

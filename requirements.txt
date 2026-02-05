@@ -6,3 +6,4 @@ torch
 paddlepaddle==3.0.0b2
 transformers>=4.45.0
 torchvision
+einops
