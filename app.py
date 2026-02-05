@@ -10,11 +10,13 @@ app = FastAPI()
 # Optimized for CPU and 8GB RAM
 MODEL_ID = "PaddlePaddle/PaddleOCR-VL-1.5"
 processor = AutoProcessor.from_pretrained(MODEL_ID, trust_remote_code=True)
-model = AutoModelForVision2Seq.from_pretrained(
+
+# Load the model using CausalLM instead
+model = AutoModelForCausalLM.from_pretrained(
     MODEL_ID, 
     trust_remote_code=True,
-    torch_dtype=torch.float32 # Use float32 for CPU
-).to("cpu").eval()
+    torch_dtype=torch.float32
+).to("cpu")
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
