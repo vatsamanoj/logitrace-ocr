@@ -1,21 +1,15 @@
 version: '3.8'
-
 services:
   ollama-vlm:
     image: ollama/ollama:latest
     container_name: ollama-vlm
     environment:
-      - OLLAMA_NUM_PARALLEL=1        # Force 1 request at a time for stability
+      - OLLAMA_NUM_PARALLEL=1
       - OLLAMA_MAX_LOADED_MODELS=1
     volumes:
       - ollama_storage:/root/.ollama
     networks:
       - logitrace-net
-    deploy:
-      resources:
-        limits:
-          cpus: '12'                # Reserve 4 cores for the OS/Dokploy so it doesn't freeze
-          memory: 16G               # Cap the RAM so it can't "run away"
     restart: always
 
   ocr-app:
@@ -29,11 +23,13 @@ services:
       - OLLAMA_HOST=http://ollama-vlm:11434
     networks:
       - logitrace-net
-    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 64G
 
 networks:
   logitrace-net:
     external: false
-
 volumes:
   ollama_storage:
