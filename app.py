@@ -15,6 +15,10 @@ async def startup():
     async with httpx.AsyncClient() as client:
         await client.post(f"{OLLAMA_URL}/api/chat", json={"model": TARGET_MODEL, "keep_alive": -1})
 
+@app.get("/")
+async def get_index(): return FileResponse("index.html")
+
+
 @app.post("/scan")
 async def scan(file: UploadFile = File(...), prompt: str = Form(...)):
     start_total = time.time()
