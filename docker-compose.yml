@@ -1,16 +1,18 @@
 version: '3.8'
 
 services:
-  # The AI Engine
   ollama-vlm:
     image: ollama/ollama:latest
     container_name: ollama-vlm
+    environment:
+      - OLLAMA_NUM_PARALLEL=4  # Processes 4 pages at the exact same time
+      - OLLAMA_MAX_LOADED_MODELS=1
     volumes:
       - ollama_storage:/root/.ollama
     networks:
       - logitrace-net
+    restart: always
 
-  # Your Logistics API
   ocr-app:
     build: .
     container_name: ocr-app
@@ -25,7 +27,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G # Qwen 3B q4 needs ~2GB; 4GB is safe
+          memory: 32G # High allocation for high-speed multi-page caching
+    restart: always
 
 networks:
   logitrace-net:
