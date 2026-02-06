@@ -2,105 +2,326 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>LogiTrace AI Pipeline</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LogiTrace AI | Super-Power Diagnostic</title>
     <style>
-        body { font-family: 'Inter', sans-serif; background: #020617; color: #f8fafc; padding: 20px; }
-        .hud { display: flex; gap: 15px; margin-bottom: 20px; }
-        .hud-item { flex: 1; background: #1e293b; padding: 15px; border-radius: 8px; border: 1px solid #334155; text-align: center; }
-        .hud-val { display: block; font-size: 22px; font-weight: bold; color: #10b981; }
-        .main { display: grid; grid-template-columns: 1fr 350px; gap: 20px; }
-        .card { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; }
-        textarea, select, input { width: 100%; background: #0f172a; color: #fff; border: 1px solid #334155; padding: 10px; margin: 10px 0; border-radius: 6px; box-sizing: border-box; }
-        button { background: #2563eb; color: white; border: none; padding: 12px; border-radius: 6px; width: 100%; font-weight: bold; cursor: pointer; }
-        button:disabled { background: #475569; cursor: not-allowed; }
-        .console { background: #000; height: 350px; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 12px; border-radius: 8px; border: 1px solid #334155; }
-        .result-card { background: #0f172a; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #10b981; }
-        pre { white-space: pre-wrap; word-wrap: break-word; color: #38bdf8; }
+        :root {
+            --primary: #2563eb;
+            --accent: #10b981;
+            --error: #ef4444;
+            --bg: #020617;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Hardware HUD */
+        .hud {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .hud-item {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .hud-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #94a3b8;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .hud-val {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        /* Main Content Layout */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .main-layout { grid-template-columns: 1fr; }
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 16px;
+            border: 1px solid #334155;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 { margin-top: 0; font-size: 1.25rem; border-bottom: 1px solid #334155; padding-bottom: 10px; }
+
+        label { display: block; margin-bottom: 8px; font-size: 0.875rem; color: #cbd5e1; }
+
+        select, textarea, input[type="file"] {
+            width: 100%;
+            background: #0f172a;
+            color: #fff;
+            border: 1px solid #334155;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            box-sizing: border-box;
+        }
+
+        textarea { resize: vertical; min-height: 80px; font-family: inherit; }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 8px;
+            width: 100%;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        button:hover { background: #1d4ed8; transform: translateY(-1px); }
+        button:disabled { background: #475569; cursor: not-allowed; transform: none; }
+
+        /* Console Window */
+        .console {
+            background: #000;
+            height: 500px;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            padding: 15px;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 0.8rem;
+            overflow-y: auto;
+            color: #38bdf8;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+        }
+
+        .log-entry {
+            margin-bottom: 6px;
+            line-height: 1.4;
+            display: flex;
+            gap: 10px;
+        }
+
+        .log-time { color: #64748b; white-space: nowrap; }
+        .log-success { color: var(--accent); }
+        .log-error { color: var(--error); }
+        .log-info { color: #38bdf8; }
+
+        /* Results Display */
+        #results-container {
+            margin-top: 25px;
+        }
+
+        .result-item {
+            background: #0f172a;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--accent);
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #1e293b;
+            padding-bottom: 5px;
+        }
+
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.9rem;
+            color: #e2e8f0;
+        }
     </style>
 </head>
 <body>
+
+<div class="container">
     <div class="hud">
-        <div class="hud-item">CPU <span id="cpu-v" class="hud-val">0%</span></div>
-        <div class="hud-item">RAM <span id="ram-v" class="hud-val">0GB</span></div>
-        <div class="hud-item">STATUS <span id="status-v" class="hud-val">IDLE</span></div>
-    </div>
-    <div class="main">
-        <div class="card">
-            <select id="mode">
-                <option value="">Auto-Intelligence</option>
-                <option value="speed">Force: Turbo (q2_K)</option>
-                <option value="precision">Force: Precision (q8_0)</option>
-            </select>
-            <textarea id="prompt" rows="3">Extract Invoice Number, Date, Amount, Currency, Beneficiary</textarea>
-            <input type="file" id="fileIn">
-            <button id="runBtn" onclick="run()">START PIPELINE</button>
-            <div id="results"></div>
+        <div class="hud-item">
+            <span class="hud-label">CPU LOAD</span>
+            <span id="cpu-v" class="hud-val">--%</span>
         </div>
-        <div class="console" id="log"></div>
+        <div class="hud-item">
+            <span class="hud-label">RAM USED (128GB)</span>
+            <span id="ram-v" class="hud-val">--GB</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">OLLAMA ENGINE</span>
+            <span id="ollama-v" class="hud-val" style="color:var(--error)">OFFLINE</span>
+        </div>
     </div>
-    <script>
-        // Use the correct location for WebSocket
-        const ws = new WebSocket(`ws://${window.location.host}/ws`);
-        
-        ws.onmessage = (e) => {
-            const r = JSON.parse(e.data);
-            if(r.type === 'stats') {
-                document.getElementById('cpu-v').innerText = r.data.cpu + '%';
-                document.getElementById('ram-v').innerText = r.data.ram_gb + 'GB';
-            } else {
-                const l = document.getElementById('log');
-                l.innerHTML += `<div><small style="color:#64748b">[${r.time}]</small> <span style="color:${r.status === 'success' ? '#10b981' : r.status === 'error' ? '#ef4444' : '#38bdf8'}">${r.msg}</span></div>`;
-                l.scrollTop = l.scrollHeight;
-            }
-        };
 
-        async function run() {
-            console.log("Pipeline initiated...");
-            const fInput = document.getElementById('fileIn');
-            const f = fInput.files[0];
-            const btn = document.getElementById('runBtn');
-            const statusV = document.getElementById('status-v');
-            const resultsDiv = document.getElementById('results');
-
-            if(!f) {
-                alert("Please select a file first.");
-                return;
-            }
+    <div class="main-layout">
+        <div class="card">
+            <h2>SYSTEM_CONTROL</h2>
             
-            // UI Setup
-            btn.disabled = true;
-            resultsDiv.innerHTML = '';
-            statusV.innerText = "BUSY";
-            statusV.style.color = "#ef4444";
+            <label for="mode">Sensed Vision Models:</label>
+            <select id="mode">
+                <option value="">Searching for vision models...</option>
+            </select>
 
-            const fd = new FormData();
-            fd.append('file', f);
-            fd.append('prompt', document.getElementById('prompt').value);
-            fd.append('mode', document.getElementById('mode').value);
+            <label for="prompt">Extraction Prompt (JSON-Focused):</label>
+            <textarea id="prompt">Extract: LC_Number, Expiry_Date, Total_Amount, Currency, Beneficiary Name, Shipping Port</textarea>
 
-            try {
-                const res = await fetch('/scan', { method: 'POST', body: fd });
-                if (!res.ok) throw new Error(`Server Error: ${res.statusText}`);
+            <label for="fileIn">Document (PDF or Image):</label>
+            <input type="file" id="fileIn" accept="application/pdf,image/*">
+
+            <button id="runBtn" onclick="runPipeline()">INITIALIZE PIPELINE</button>
+
+            <div id="results-container"></div>
+        </div>
+
+        <div class="card">
+            <h2>DIAGNOSTIC_LOG</h2>
+            <div class="console" id="console">
+                <div class="log-entry"><span class="log-time">[INIT]</span> <span class="log-info">Awaiting WebSocket connection...</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const consoleEl = document.getElementById('console');
+    const cpuEl = document.getElementById('cpu-v');
+    const ramEl = document.getElementById('ram-v');
+    const ollamaEl = document.getElementById('ollama-v');
+    const modeSelect = document.getElementById('mode');
+    const runBtn = document.getElementById('runBtn');
+
+    // Establish WebSocket Connection
+    const ws = new WebSocket(`ws://${window.location.host}/ws`);
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        // Handle Stats Update
+        if (data.type === 'stats') {
+            cpuEl.innerText = data.data.cpu + '%';
+            ramEl.innerText = data.data.ram_gb + 'GB';
+            return;
+        }
+
+        // Handle Real-time Logs
+        if (data.type === 'log') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            
+            let statusClass = 'log-info';
+            if (data.status === 'success') statusClass = 'log-success';
+            if (data.status === 'error') statusClass = 'log-error';
+
+            entry.innerHTML = `<span class="log-time">[${data.time}]</span> <span class="${statusClass}">${data.msg}</span>`;
+            consoleEl.appendChild(entry);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+
+            // Handle Auto-discovered Models
+            if (data.data && data.data.models) {
+                ollamaEl.innerText = "ONLINE";
+                ollamaEl.style.color = "var(--accent)";
                 
-                const data = await res.json();
-                console.log("Data received:", data);
-
-                resultsDiv.innerHTML = data.results.map(r => `
-                    <div class="result-card">
-                        <b>Page ${r.page}</b> (${r.perf}s)
-                        <pre>${JSON.stringify(r.data, null, 2)}</pre>
-                    </div>
-                `).join('');
-                
-            } catch (e) {
-                console.error("Scan failed:", e);
-                alert("Error: " + e.message);
-            } finally {
-                btn.disabled = false;
-                statusV.innerText = "IDLE";
-                statusV.style.color = "#10b981";
+                modeSelect.innerHTML = data.data.models.map(m => 
+                    `<option value="${m.name}">${m.name} (${m.size})</option>`
+                ).join('');
             }
         }
-    </script>
+    };
+
+    ws.onerror = () => {
+        ollamaEl.innerText = "WS ERROR";
+        ollamaEl.style.color = "var(--error)";
+    };
+
+    async function runPipeline() {
+        const file = document.getElementById('fileIn').files[0];
+        const prompt = document.getElementById('prompt').value;
+        const mode = modeSelect.value;
+        const resultsContainer = document.getElementById('results-container');
+
+        if (!file) return alert("Please upload a document first.");
+        if (!mode) return alert("No vision model selected.");
+
+        // Reset UI
+        runBtn.disabled = true;
+        runBtn.innerText = "PROCESSING...";
+        resultsContainer.innerHTML = '';
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('prompt', prompt);
+        formData.append('mode', mode);
+
+        try {
+            const response = await fetch('/scan', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) throw new Error("Backend processing failed.");
+
+            const resultData = await response.json();
+            
+            // Render results
+            resultsContainer.innerHTML = resultData.results.map(r => `
+                <div class="result-item">
+                    <div class="result-header">
+                        <span>PAGE ${r.page}</span>
+                        <span>SPEED: ${r.perf}s</span>
+                    </div>
+                    <pre>${JSON.stringify(r.data, null, 2)}</pre>
+                </div>
+            `).join('');
+
+        } catch (error) {
+            console.error(error);
+            alert("Error: " + error.message);
+        } finally {
+            runBtn.disabled = false;
+            runBtn.innerText = "INITIALIZE PIPELINE";
+        }
+    }
+</script>
+
 </body>
 </html>
