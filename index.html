@@ -10,10 +10,12 @@
         .hud-val { display: block; font-size: 22px; font-weight: bold; color: #10b981; }
         .main { display: grid; grid-template-columns: 1fr 350px; gap: 20px; }
         .card { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; }
-        textarea, select, input { width: 100%; background: #0f172a; color: #fff; border: 1px solid #334155; padding: 10px; margin: 10px 0; border-radius: 6px; }
+        textarea, select, input { width: 100%; background: #0f172a; color: #fff; border: 1px solid #334155; padding: 10px; margin: 10px 0; border-radius: 6px; box-sizing: border-box; }
         button { background: #2563eb; color: white; border: none; padding: 12px; border-radius: 6px; width: 100%; font-weight: bold; cursor: pointer; }
+        button:disabled { background: #475569; cursor: not-allowed; }
         .console { background: #000; height: 350px; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 12px; border-radius: 8px; border: 1px solid #334155; }
         .result-card { background: #0f172a; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #10b981; }
+        pre { white-space: pre-wrap; word-wrap: break-word; color: #38bdf8; }
     </style>
 </head>
 <body>
@@ -31,13 +33,15 @@
             </select>
             <textarea id="prompt" rows="3">Extract Invoice Number, Date, Amount, Currency, Beneficiary</textarea>
             <input type="file" id="fileIn">
-            <button onclick="run()">START PIPELINE</button>
+            <button id="runBtn" onclick="run()">START PIPELINE</button>
             <div id="results"></div>
         </div>
         <div class="console" id="log"></div>
     </div>
     <script>
-        const ws = new WebSocket(`ws://${location.host}/ws`);
+        // Use the correct location for WebSocket
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        
         ws.onmessage = (e) => {
             const r = JSON.parse(e.data);
             if(r.type === 'stats') {
@@ -45,23 +49,57 @@
                 document.getElementById('ram-v').innerText = r.data.ram_gb + 'GB';
             } else {
                 const l = document.getElementById('log');
-                l.innerHTML += `<div><small>[${r.time}]</small> ${r.msg}</div>`;
+                l.innerHTML += `<div><small style="color:#64748b">[${r.time}]</small> <span style="color:${r.status === 'success' ? '#10b981' : r.status === 'error' ? '#ef4444' : '#38bdf8'}">${r.msg}</span></div>`;
                 l.scrollTop = l.scrollHeight;
             }
         };
+
         async function run() {
-            const f = document.getElementById('fileIn').files[0];
+            console.log("Pipeline initiated...");
+            const fInput = document.getElementById('fileIn');
+            const f = fInput.files[0];
+            const btn = document.getElementById('runBtn');
+            const statusV = document.getElementById('status-v');
+            const resultsDiv = document.getElementById('results');
+
+            if(!f) {
+                alert("Please select a file first.");
+                return;
+            }
+            
+            // UI Setup
+            btn.disabled = true;
+            resultsDiv.innerHTML = '';
+            statusV.innerText = "BUSY";
+            statusV.style.color = "#ef4444";
+
             const fd = new FormData();
             fd.append('file', f);
             fd.append('prompt', document.getElementById('prompt').value);
             fd.append('mode', document.getElementById('mode').value);
-            document.getElementById('status-val').innerText = "BUSY";
-            const res = await fetch('/scan', { method: 'POST', body: fd });
-            const data = await res.json();
-            document.getElementById('results').innerHTML = data.results.map(r => `
-                <div class="result-card"><b>Page ${r.page}</b> (${r.perf}s)<pre>${JSON.stringify(r.data, null, 2)}</pre></div>
-            `).join('');
-            document.getElementById('status-v').innerText = "IDLE";
+
+            try {
+                const res = await fetch('/scan', { method: 'POST', body: fd });
+                if (!res.ok) throw new Error(`Server Error: ${res.statusText}`);
+                
+                const data = await res.json();
+                console.log("Data received:", data);
+
+                resultsDiv.innerHTML = data.results.map(r => `
+                    <div class="result-card">
+                        <b>Page ${r.page}</b> (${r.perf}s)
+                        <pre>${JSON.stringify(r.data, null, 2)}</pre>
+                    </div>
+                `).join('');
+                
+            } catch (e) {
+                console.error("Scan failed:", e);
+                alert("Error: " + e.message);
+            } finally {
+                btn.disabled = false;
+                statusV.innerText = "IDLE";
+                statusV.style.color = "#10b981";
+            }
         }
     </script>
 </body>
