@@ -3,60 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LogiTrace OCR Parallel</title>
+    <title>LogiTrace OCR 7B</title>
     <style>
         :root { --primary: #2563eb; --bg: #f8fafc; }
         body { font-family: system-ui, sans-serif; background: var(--bg); padding: 2rem; display: flex; justify-content: center; }
-        .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); width: 100%; max-width: 600px; }
-        h2 { margin-top: 0; color: #1e293b; }
-        textarea, input { width: 100%; padding: 0.75rem; margin: 1rem 0; border: 1px solid #e2e8f0; border-radius: 6px; box-sizing: border-box; }
-        button { background: var(--primary); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; cursor: pointer; width: 100%; font-weight: 600; }
+        .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 700px; }
+        textarea, input { width: 100%; padding: 0.8rem; margin: 1rem 0; border: 1px solid #e2e8f0; border-radius: 8px; }
+        button { background: var(--primary); color: white; border: none; padding: 1rem; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
         button:disabled { background: #94a3b8; }
-        .progress-container { display: none; margin-top: 1.5rem; }
-        .progress-bg { background: #e2e8f0; height: 12px; border-radius: 10px; overflow: hidden; }
-        .progress-fill { background: var(--primary); height: 100%; width: 0%; transition: width 0.4s ease; }
-        .status-text { font-size: 0.875rem; color: #64748b; margin-bottom: 0.5rem; text-align: center; }
-        pre { background: #1e293b; color: #f8fafc; padding: 1rem; border-radius: 6px; overflow-x: auto; margin-top: 1.5rem; display: none; }
+        .progress-container { display: none; margin: 1.5rem 0; }
+        .progress-bg { background: #e2e8f0; height: 12px; border-radius: 6px; overflow: hidden; }
+        .progress-fill { background: var(--primary); height: 100%; width: 0%; transition: width 0.3s; }
+        .status { font-size: 0.9rem; color: #64748b; text-align: center; margin-bottom: 0.5rem; }
+        pre { background: #0f172a; color: #38bdf8; padding: 1.5rem; border-radius: 8px; overflow-x: auto; display: none; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h2>LogiTrace OCR <small style="font-size: 12px; color: #3b82f6;">Parallel 128GB</small></h2>
-        <textarea id="prompt">Extract Invoice ID, Date, and Total Amount as JSON</textarea>
+        <h2>LogiTrace OCR <small style="color:var(--primary)">Qwen 7B Parallel</small></h2>
+        <textarea id="prompt" rows="3">Extract Invoice ID, Beneficiary, Expiry Date, and Total Amount as JSON</textarea>
         <input type="file" id="fileInput" accept="image/*,application/pdf">
-        <button id="scanBtn" onclick="startScan()">Analyze Document</button>
-        <div class="progress-container" id="progressContainer">
-            <div class="status-text" id="statusText">Preparing document...</div>
-            <div class="progress-bg"><div class="progress-fill" id="progressFill"></div></div>
+        <button id="scanBtn" onclick="runScan()">Start Analysis</button>
+        <div class="progress-container" id="progCont">
+            <div class="status" id="status">Converting document...</div>
+            <div class="progress-bg"><div class="progress-fill" id="fill"></div></div>
         </div>
         <pre id="output"></pre>
     </div>
     <script>
-        async function startScan() {
-            const fileInput = document.getElementById('fileInput');
-            const prompt = document.getElementById('prompt').value;
+        async function runScan() {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) return alert("Select a file");
+            
             const btn = document.getElementById('scanBtn');
             const output = document.getElementById('output');
-            const progressContainer = document.getElementById('progressContainer');
-            const progressFill = document.getElementById('progressFill');
-            const statusText = document.getElementById('statusText');
-            if (!fileInput.files[0]) return alert("Please select a file");
-            btn.disabled = true; output.style.display = 'none'; progressContainer.style.display = 'block';
-            progressFill.style.width = '10%'; statusText.innerText = "Processing pages in parallel...";
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
-            formData.append('prompt', prompt);
+            const fill = document.getElementById('fill');
+            const status = document.getElementById('status');
+            
+            btn.disabled = true;
+            output.style.display = 'none';
+            document.getElementById('progCont').style.display = 'block';
+            
+            fill.style.width = '10%';
+            status.innerText = "Uploading and preparing pages...";
+
+            const body = new FormData();
+            body.append('file', file);
+            body.append('prompt', document.getElementById('prompt').value);
+
             try {
-                const interval = setInterval(() => {
-                    let w = parseInt(progressFill.style.width);
-                    if (w < 90) progressFill.style.width = (w + 2) + '%';
-                }, 400);
-                const response = await fetch('/scan', { method: 'POST', body: formData });
-                const result = await response.json();
-                clearInterval(interval);
-                progressFill.style.width = '100%'; statusText.innerText = "Scan Complete!";
-                output.innerText = JSON.stringify(result, null, 2); output.style.display = 'block';
-            } catch (err) { alert("Error: " + err.message); } finally { btn.disabled = false; }
+                let p = 10;
+                const timer = setInterval(() => { if(p < 90) { p += 2; fill.style.width = p + '%'; } }, 500);
+                
+                const res = await fetch('/scan', { method: 'POST', body });
+                const data = await res.json();
+                
+                clearInterval(timer);
+                fill.style.width = '100%';
+                status.innerText = "Processing Complete!";
+                output.innerText = JSON.stringify(data, null, 2);
+                output.style.display = 'block';
+            } catch (e) { status.innerText = "Error: " + e.message; }
+            finally { btn.disabled = false; }
         }
     </script>
 </body>

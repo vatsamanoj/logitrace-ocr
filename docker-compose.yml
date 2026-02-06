@@ -5,7 +5,7 @@ services:
     image: ollama/ollama:latest
     container_name: ollama-vlm
     environment:
-      - OLLAMA_NUM_PARALLEL=4  # Processes 4 pages at the exact same time
+      - OLLAMA_NUM_PARALLEL=2
       - OLLAMA_MAX_LOADED_MODELS=1
     volumes:
       - ollama_storage:/root/.ollama
@@ -27,7 +27,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 32G # High allocation for high-speed multi-page caching
+          memory: 32G
     restart: always
 
 networks:
