@@ -5,3 +5,4 @@ httpx
 pillow
 pdf2image
 psutil
+pytesseract
