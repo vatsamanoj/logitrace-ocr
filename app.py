@@ -10,13 +10,13 @@ OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://ollama-vlm:11434")
 METRICS_FILE = Path("ocr_performance.json")
 active_connections = set()
 
-# Model Precision Tiers
-MODELS = {
-    "speed": "qwen2.7b-instruct-q2_K",
-    "balanced": "qwen2.7b-instruct-q4_K_M",
-    "precision": "qwen2.7b-instruct-q8_0"
-}
 
+# --- DYNAMICALLY MAPPED MODELS (MATCHING YOUR SYSTEM) ---
+MODELS = {
+    "speed": "qwen2:7b-instruct-q2_K",            # Matches your q2_K pull
+    "balanced": "qwen2:7b-instruct-q4_K_M",      # Matches your q4_K_M pull
+    "precision": "qwen2:7b-instruct-q8_0"        # Matches your q8_0 pull
+}
 
 if not METRICS_FILE.exists():
     METRICS_FILE.write_text(json.dumps({"history": []}))
