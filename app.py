@@ -8,7 +8,6 @@ app = FastAPI()
 OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://ollama-vlm:11434")
 active_connections = set()
 
-# Map the exact tags from your system
 PRECISION_MODELS = {
     "speed": "qwen2.5vl:7b-q4_K_M",
     "high": "qwen2.5vl:7b-q8_0"
@@ -32,7 +31,7 @@ async def log_to_ws(msg: str, status="info"):
     payload = {"type": "log", "time": time.strftime("%H:%M:%S"), "msg": msg, "status": status}
     for ws in list(active_connections):
         try: await ws.send_json(payload)
-        except: active_connections.discard(ws)
+        except: pass
 
 @app.get("/", response_class=HTMLResponse)
 async def get_index():
@@ -62,14 +61,13 @@ async def ai_worker(queue, client, prompt, threads, model_alias, results):
                 "messages": [{"role": "user", "content": f"OCR extraction: {prompt}. JSON only.", "images": [img_b64]}],
                 "stream": False, 
                 "format": "json", 
-                "keep_alive": "1m", # RECLAIM RAM FASTER
+                "keep_alive": "1m",
                 "options": {
-                    "num_thread": 8,        # FIX: Lower threads to prevent CPU thrashing
-                    "num_ctx": 4096,        # FIX: Limit context window to speed up inference
-                    "temperature": 0,
-                    "num_predict": 1024
+                    "num_thread": 8, # Prevent CPU thrashing on 16 cores
+                    "num_ctx": 4096,
+                    "temperature": 0
                 }
-            }, timeout=120.0) # Lower timeout to prevent infinite hangs
+            }, timeout=150.0)
             
             res_json = response.json()
             content = res_json.get("message", {}).get("content", "").strip()
@@ -79,31 +77,35 @@ async def ai_worker(queue, client, prompt, threads, model_alias, results):
                 results.append({"page": page_num, "data": json.loads(content), "perf": elapsed})
                 await log_to_ws(f"✅ Page {page_num} Complete in {elapsed}s", "success")
             else:
-                await log_to_ws(f"⚠️ Page {page_num}: Model gave empty response.", "error")
+                await log_to_ws(f"⚠️ Page {page_num}: Empty response.", "error")
         except Exception as e:
-            await log_to_ws(f"❌ Page {page_num} HANGED: {str(e)}", "error")
+            await log_to_ws(f"❌ Page {page_num} Error: {str(e)}", "error")
         queue.task_done()
 
 @app.post("/scan")
 async def scan(file: UploadFile = File(...), prompt: str = Form(...), mode: str = Form(...)):
     try:
         content = await file.read()
-        queue = asyncio.Queue(); results = []
+        queue = asyncio.Queue()
+        results = []
         async with httpx.AsyncClient() as client:
-            # ONLY 1 WORKER: Running 2 pages at once on CPU causes the 84% "doing nothing" freeze.
+            # Single worker with optimized threads is best for CPU inference
             workers = [asyncio.create_task(ai_worker(queue, client, prompt, 8, mode, results))]
             
-            # OPTIMIZED IMAGE SIZE: 1200px is enough for Qwen 7B to read shipping docs.
+            await log_to_ws("📂 Ripping PDF (Optimized DPI)...")
             pages = convert_from_bytes(content, dpi=150, thread_count=8, strict=False)
-            await log_to_ws(f"📂 PDF Parsed. Starting Sequential Inference...")
             
             for i, p in enumerate(pages):
                 img = p.convert("RGB")
-                img.thumbnail((1200, 1200)) # FIX: Smaller resolution = 4x faster CPU processing
-                buf = io.BytesIO(); img.save(buf, format='JPEG', quality=75)
+                img.thumbnail((1200, 1200)) # Balanced res for Qwen-VL
+                buf = io.BytesIO()
+                img.save(buf, format='JPEG', quality=75)
                 await queue.put((i + 1, base64.b64encode(buf.getvalue()).decode('utf-8')))
             
             await queue.put(None)
             await asyncio.gather(*workers)
             
         return {"results": sorted(results, key=lambda x: x['page'])}
+    except Exception as e:
+        await log_to_ws(f"🔥 System Failure: {str(e)}", "error")
+        raise HTTPException(status_code=500, detail=str(e))
