@@ -3,15 +3,21 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, WebSocket, W
 from fastapi.responses import HTMLResponse, FileResponse
 from PIL import Image
 from pdf2image import convert_from_bytes
+from concurrent.futures import ProcessPoolExecutor
 
 app = FastAPI()
+# We use 'moondream' or 'smollm' for sub-1s performance
+TARGET_MODEL = "moondream" 
 OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://ollama-vlm:11434")
+executor = ProcessPoolExecutor(max_workers=4) # Parallel PDF ripping
 active_connections = set()
 
-PRECISION_MODELS = {
-    "speed": "qwen2.5vl:7b-q4_K_M",
-    "high": "qwen2.5vl:7b-q8_0"
-}
+@app.on_event("startup")
+async def startup_event():
+    # Ensure model is pre-loaded in the 128GB RAM permanently
+    async with httpx.AsyncClient() as client:
+        await client.post(f"{OLLAMA_URL}/api/chat", json={"model": TARGET_MODEL, "keep_alive": -1})
+    asyncio.create_task(broadcast_stats())
 
 async def broadcast_stats():
     while True:
@@ -23,89 +29,74 @@ async def broadcast_stats():
                 except: active_connections.discard(ws)
         await asyncio.sleep(1)
 
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(broadcast_stats())
-
 async def log_to_ws(msg: str, status="info"):
     payload = {"type": "log", "time": time.strftime("%H:%M:%S"), "msg": msg, "status": status}
     for ws in list(active_connections):
         try: await ws.send_json(payload)
         except: pass
 
-@app.get("/", response_class=HTMLResponse)
-async def get_index():
-    return FileResponse("index.html")
+@app.get("/")
+async def get_index(): return FileResponse("index.html")
 
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket):
     await websocket.accept(); active_connections.add(websocket)
-    await log_to_ws("System Active. Select Precision Mode to begin.", "success")
+    await log_to_ws(f"🚀 ULTRA-SPEED ENGINE ACTIVE: {TARGET_MODEL}", "success")
     try:
         while True: await websocket.receive_text()
     except WebSocketDisconnect: active_connections.discard(websocket)
 
-async def ai_worker(queue, client, prompt, threads, model_alias, results):
-    model_name = PRECISION_MODELS.get(model_alias, PRECISION_MODELS["speed"])
+async def ai_worker(queue, client, prompt, results):
     while True:
         item = await queue.get()
         if item is None: break
         page_num, img_b64 = item
         start_t = time.time()
         
-        await log_to_ws(f"🚀 Page {page_num}: Fast-Processing with {model_name}...")
-        
         try:
+            # OPTIMIZATION: Reduced context and zero-temp for instant response
             response = await client.post(f"{OLLAMA_URL}/api/chat", json={
-                "model": model_name,
-                "messages": [{"role": "user", "content": f"OCR extraction: {prompt}. JSON only.", "images": [img_b64]}],
-                "stream": False, 
-                "format": "json", 
-                "keep_alive": "1m",
-                "options": {
-                    "num_thread": 8, # Prevent CPU thrashing on 16 cores
-                    "num_ctx": 4096,
-                    "temperature": 0
-                }
-            }, timeout=150.0)
+                "model": TARGET_MODEL,
+                "messages": [{"role": "user", "content": f"JSON: {prompt}", "images": [img_b64]}],
+                "stream": False, "format": "json", "keep_alive": -1,
+                "options": {"num_thread": 12, "num_ctx": 1024, "temperature": 0}
+            }, timeout=30.0)
             
-            res_json = response.json()
-            content = res_json.get("message", {}).get("content", "").strip()
             elapsed = round(time.time() - start_t, 2)
-            
-            if content:
-                results.append({"page": page_num, "data": json.loads(content), "perf": elapsed})
-                await log_to_ws(f"✅ Page {page_num} Complete in {elapsed}s", "success")
-            else:
-                await log_to_ws(f"⚠️ Page {page_num}: Empty response.", "error")
+            content = response.json().get("message", {}).get("content", "{}")
+            results.append({"page": page_num, "data": json.loads(content), "perf": elapsed})
+            await log_to_ws(f"✅ Page {page_num} Processed: {elapsed}s", "success")
         except Exception as e:
             await log_to_ws(f"❌ Page {page_num} Error: {str(e)}", "error")
         queue.task_done()
 
 @app.post("/scan")
-async def scan(file: UploadFile = File(...), prompt: str = Form(...), mode: str = Form(...)):
+async def scan(file: UploadFile = File(...), prompt: str = Form(...)):
+    start_total = time.time()
     try:
         content = await file.read()
-        queue = asyncio.Queue()
-        results = []
+        queue = asyncio.Queue(); results = []
+        
         async with httpx.AsyncClient() as client:
-            # Single worker with optimized threads is best for CPU inference
-            workers = [asyncio.create_task(ai_worker(queue, client, prompt, 8, mode, results))]
+            worker = asyncio.create_task(ai_worker(queue, client, prompt, results))
             
-            await log_to_ws("📂 Ripping PDF (Optimized DPI)...")
-            pages = convert_from_bytes(content, dpi=150, thread_count=8, strict=False)
+            # OPTIMIZATION: Ultra-fast Low-Res Ripping
+            # 100 DPI is enough for these tiny models to process instantly
+            pages = convert_from_bytes(content, dpi=100, thread_count=16, strict=False)
+            await log_to_ws(f"📂 Ripped {len(pages)} pages in {round(time.time()-start_total, 2)}s")
             
             for i, p in enumerate(pages):
                 img = p.convert("RGB")
-                img.thumbnail((1200, 1200)) # Balanced res for Qwen-VL
-                buf = io.BytesIO()
-                img.save(buf, format='JPEG', quality=75)
+                img.thumbnail((768, 768)) # Moondream/SmolVLM native resolution
+                buf = io.BytesIO(); img.save(buf, format='JPEG', quality=60)
                 await queue.put((i + 1, base64.b64encode(buf.getvalue()).decode('utf-8')))
             
             await queue.put(None)
-            await asyncio.gather(*workers)
+            await asyncio.gather(worker)
             
+        total_time = round(time.time() - start_total, 2)
+        await log_to_ws(f"🏆 TOTAL SCAN TIME: {total_time}s", "success")
         return {"results": sorted(results, key=lambda x: x['page'])}
     except Exception as e:
-        await log_to_ws(f"🔥 System Failure: {str(e)}", "error")
+        await log_to_ws(f"🔥 Failure: {str(e)}", "error")
         raise HTTPException(status_code=500, detail=str(e))
