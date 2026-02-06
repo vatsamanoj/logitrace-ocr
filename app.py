@@ -31,6 +31,13 @@ async def broadcast_stats():
 async def startup_event():
     asyncio.create_task(broadcast_stats())
 
+    # --- ROUTES ---
+@app.get("/", response_class=HTMLResponse)
+async def get_index():
+    """Serves the dashboard and fixes the 404 issue"""
+    index_path = os.path.join(os.getcwd(), "index.html")
+    return FileResponse(index_path)
+
 async def log_to_ws(msg: str, status="info"):
     payload = {"type": "log", "time": time.strftime("%H:%M:%S"), "msg": msg, "status": status}
     for ws in active_connections:
